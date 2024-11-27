@@ -1,108 +1,101 @@
 import numpy as np
 import cv2 as cv
 
-
+# Function to compute disparity map between rectified stereo images
 def compute_disparity(rectified_l, rectified_r):
-                        window_size = 7
-                        min_disp = 0
-                        max_disp = 64
-                        num_disp = max_disp - min_disp
+    # Set parameters for StereoSGBM (Semi-Global Block Matching)
+    window_size = 7
+    min_disp = 0  # Minimum disparity
+    max_disp = 64  # Maximum disparity
+    num_disp = max_disp - min_disp  # Number of disparities
 
-                        stereo = cv.StereoSGBM_create(
-                            minDisparity = min_disp,
-                            numDisparities = num_disp,
-                            blockSize= window_size,
-                            preFilterCap=63,
-                            uniquenessRatio = 15,
-                            speckleWindowSize = 10,
-                            speckleRange = 1,
-                            disp12MaxDiff = 20,
-                            P1 = 8*3*window_size**2,
-                            P2 = 32*3*window_size**2,
-                            mode=cv.STEREO_SGBM_MODE_SGBM_3WAY
-                        )
+    # Create left and right stereo matchers
+    stereo = cv.StereoSGBM_create(
+        minDisparity=min_disp,
+        numDisparities=num_disp,
+        blockSize=window_size,
+        preFilterCap=63,
+        uniquenessRatio=15,
+        speckleWindowSize=10,
+        speckleRange=1,
+        disp12MaxDiff=20,
+        P1=8 * 3 * window_size ** 2,  # Penalty for small disparities
+        P2=32 * 3 * window_size ** 2,  # Penalty for large disparities
+        mode=cv.STEREO_SGBM_MODE_SGBM_3WAY
+    )
 
-                        left_matcher = stereo
-                        right_matcher = cv.ximgproc.createRightMatcher(left_matcher)
+    # Create right stereo matcher
+    left_matcher = stereo
+    right_matcher = cv.ximgproc.createRightMatcher(left_matcher)
 
-                        l = 70000
-                        s = 1.2
+    # Parameters for WLS (Weighted Least Squares) disparity filtering
+    l = 70000  # Lambda for regularization
+    s = 1.2  # Sigma for color filtering
 
-                        disparity_filter = cv.ximgproc.createDisparityWLSFilter(left_matcher)
-                        disparity_filter.setLambda(l)
-                        disparity_filter.setSigmaColor(s)
+    # Create WLS filter
+    disparity_filter = cv.ximgproc.createDisparityWLSFilter(left_matcher)
+    disparity_filter.setLambda(l)
+    disparity_filter.setSigmaColor(s)
 
-                        d_l_1 = left_matcher.compute(rectified_l, rectified_r).astype(np.float32) / 16.0
-                        d_r_1 = right_matcher.compute(rectified_r, rectified_l).astype(np.float32) / 16.0
+    # Compute disparity maps for left and right images
+    d_l_1 = left_matcher.compute(rectified_l, rectified_r).astype(np.float32) / 16.0
+    d_r_1 = right_matcher.compute(rectified_r, rectified_l).astype(np.float32) / 16.0
 
-                        d_l = np.int16(d_l_1)
-                        d_r = np.int16(d_r_1)
-                        
-                        d_filter = disparity_filter.filter(d_l, rectified_l, None, d_r)
+    # Convert disparities to integer for filtering
+    d_l = np.int16(d_l_1)
+    d_r = np.int16(d_r_1)
 
-                        disparity = cv.normalize(d_filter, None, alpha=0, beta=255, norm_type=cv.NORM_MINMAX)
-                        filteredImg = np.uint8(disparity)
-                   #     points = cv.reprojectImageTo3D(d_l_1, Q)
-                        print("depth",d_filter[395][204])
-                        cv.circle(filteredImg,(int(400),int(122)),2,(120,255,255),2,cv.LINE_AA)
-                        
-                        # points = cv.reprojectImageTo3D(d_filter, Q)
-                        # colors = cv.cvtColor(rectified_l, cv.COLOR_BGR2RGB)
-                        # mask = d_filter > d_filter.min()
-                        # out_points = points[mask]
-                        # out_colors = colors[mask]
-                        # # append_ply_array(out_points, out_colors)
+    # Apply WLS filter to disparity map
+    d_filter = disparity_filter.filter(d_l, rectified_l, None, d_r)
 
-                        # disparity_scaled = (d_filter - min_disp) / num_disp
-                        # disparity_scaled += abs(np.amin(disparity_scaled))
-                        # disparity_scaled /= np.amax(disparity_scaled)
-                        # disparity_scaled[disparity_scaled < 0] = 0
-                        # final= np.array(255 * disparity_scaled, np.uint8) 
-                        
-                        imgr2=cv.applyColorMap( filteredImg, cv.COLORMAP_MAGMA)
-                        
-                        return imgr2
+    # Normalize disparity for visualization
+    disparity = cv.normalize(d_filter, None, alpha=0, beta=255, norm_type=cv.NORM_MINMAX)
+    filteredImg = np.uint8(disparity)
 
-def distance_calc(LX,RX):
-        Baseline=45
-        Disparsity=LX-RX
-        z_depth=(Baseline*405)/Disparsity
-        print("gg",z_depth)
+    # Example: Highlight a specific point in the disparity map
+    cv.circle(filteredImg, (int(400), int(122)), 2, (120, 255, 255), 2, cv.LINE_AA)
 
-        print(z_depth)
+    # Optionally, apply a color map for better visualization
+    imgr2 = cv.applyColorMap(filteredImg, cv.COLORMAP_MAGMA)
 
+    return imgr2
+
+# Function to calculate distance based on disparity
+def distance_calc(LX, RX):
+    Baseline = 45  # Distance between the stereo cameras in mm
+    Disparity = LX - RX  # Difference in x-coordinates of corresponding points
+    z_depth = (Baseline * 405) / Disparity  # Calculate depth
+    print("Depth (Z):", z_depth)
+
+# Main function (currently commented out)
+# This function captures stereo video frames, remaps them using the calibration data, and computes the disparity map.
 # def main():
-   
-#                 cap= cv.VideoCapture(0) 
-#                 #load calibrated data from camera_calib file
-#                 cv_file = cv.FileStorage()
-#                 cv_file.open('/home/ubuntu/dummy_final_stereo_data.xml', cv.FileStorage_READ)
-#                 matrix_l = cv_file.getNode('matrix_1').mat()
-#                 matrix_r = cv_file.getNode('matrix_2').mat()
-#                 dist_l = cv_file.getNode('dist_1').mat()
-#                 dist_r = cv_file.getNode('dist_2').mat()
-#                 map_w_L=cv_file.getNode('map_w_L').mat()
-#                 map_h_L=cv_file.getNode('map_h_L').mat()
-#                 map_w_R=cv_file.getNode('map_w_R').mat()
-#                 map_h_R=cv_file.getNode('map_h_R').mat()
-#                              #define marker parameter
-   
-                
-#                   # 0 -> Right Camera
-       
-#                 while True:
-                       
-#                         success, frame = cap.read()
+#     cap = cv.VideoCapture(0)  # Capture from stereo camera
+#     # Load pre-calibrated stereo camera data
+#     cv_file = cv.FileStorage()
+#     cv_file.open('/home/ubuntu/dummy_final_stereo_data.xml', cv.FileStorage_READ)
+#     matrix_l = cv_file.getNode('matrix_1').mat()
+#     matrix_r = cv_file.getNode('matrix_2').mat()
+#     dist_l = cv_file.getNode('dist_1').mat()
+#     dist_r = cv_file.getNode('dist_2').mat()
+#     map_w_L = cv_file.getNode('map_w_L').mat()
+#     map_h_L = cv_file.getNode('map_h_L').mat()
+#     map_w_R = cv_file.getNode('map_w_R').mat()
+#     map_h_R = cv_file.getNode('map_h_R').mat()
 
-#                         Left_Fram = frame[0:460, 0:640]
-#                         Right_Fram = frame[0:460, 640:1280]
-#                         Left_Frame = cv.remap(Left_Fram, map_w_L, map_h_L, cv.INTER_LINEAR)
-#                         Right_Frame = cv.remap(Right_Fram, map_w_R, map_h_R, cv.INTER_LINEAR)
+#     while True:
+#         success, frame = cap.read()
+#         # Split stereo frame into left and right images
+#         Left_Fram = frame[0:460, 0:640]
+#         Right_Fram = frame[0:460, 640:1280]
 
-#                         img=compute_disparity(Left_Frame, Right_Frame)
-#                         cv.imshow("Dmap",img)
-#                         cv.waitKey(1)
+#         # Rectify the frames using the calibration maps
+#         Left_Frame = cv.remap(Left_Fram, map_w_L, map_h_L, cv.INTER_LINEAR)
+#         Right_Frame = cv.remap(Right_Fram, map_w_R, map_h_R, cv.INTER_LINEAR)
 
+#         # Compute disparity map and display
+#         img = compute_disparity(Left_Frame, Right_Frame)
+#         cv.imshow("Disparity Map", img)
+#         cv.waitKey(1)
 
 # main()
-        
