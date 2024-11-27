@@ -1,4 +1,4 @@
-#Stereo Depth Estimation and Camera Calibration
+## Stereo Depth Estimation and Camera Calibration
 
 This repository contains Python scripts to perform **Stereo Depth Estimation**, **Stereo Camera Calibration**, and **Stereo Image Capture**. The scripts use OpenCV to process stereo images and compute depth maps, enabling real-time distance calculations and accurate stereo vision calibration.
 
